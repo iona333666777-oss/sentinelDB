@@ -5,7 +5,8 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, String, Table, Text, text
+from sqlalchemy import BigInteger, Boolean, Column, DateTime, ForeignKey, String, Table, Text, text
+from sqlalchemy.dialects.postgresql import INET
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -81,14 +82,18 @@ class ProtectedObject(Base, TimestampMixin):
 
 
 class AuditLog(Base):
-    """Журнал аудита для будущих триггеров Модуля 2."""
+    """Неизменяемый журнал событий базы данных."""
 
     __tablename__ = "audit_log"
     __table_args__ = {"schema": "public"}
-    id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[int | None] = mapped_column(ForeignKey("public.users.id", ondelete="SET NULL"))
-    action: Mapped[str] = mapped_column(String(64), nullable=False)
-    table_name: Mapped[str | None] = mapped_column(String(128))
-    record_id: Mapped[int | None] = mapped_column()
-    details: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"), nullable=False)
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    event_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"), nullable=False)
+    username: Mapped[str] = mapped_column(Text, nullable=False)
+    session_user: Mapped[str | None] = mapped_column(Text)
+    table_name: Mapped[str] = mapped_column(Text, nullable=False)
+    operation: Mapped[str] = mapped_column(Text, nullable=False)
+    record_id: Mapped[str | None] = mapped_column(Text)
+    old_data: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    new_data: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    client_ip: Mapped[str | None] = mapped_column(INET)
+    txid: Mapped[int | None] = mapped_column(BigInteger)
