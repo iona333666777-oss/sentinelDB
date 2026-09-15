@@ -120,3 +120,19 @@ class AuditLog(Base):
     new_data: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     client_ip: Mapped[str | None] = mapped_column(INET)
     txid: Mapped[int | None] = mapped_column(BigInteger)
+
+
+class SuspiciousActivity(Base):
+    """Канал событий, которые не фиксируются DML-триггерами, например SELECT."""
+
+    __tablename__ = "suspicious_activity"
+    __table_args__ = {"schema": "public"}
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    event_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=text("now()"), nullable=False)
+    source_ip: Mapped[str] = mapped_column(INET, nullable=False)
+    app_user: Mapped[str | None] = mapped_column(Text)
+    attack_type: Mapped[str] = mapped_column(Text, nullable=False)
+    query_text: Mapped[str | None] = mapped_column(Text)
+    target_table: Mapped[str | None] = mapped_column(Text)
+    details: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    severity: Mapped[str] = mapped_column(Text, server_default="medium", nullable=False)
