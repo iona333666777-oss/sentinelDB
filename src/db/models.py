@@ -11,6 +11,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base, TimestampMixin
+from src.security.crypto import decrypt_field, encrypt_field
 
 
 # M:N-таблицы объявлены как Core Table: relationship(secondary=...) ожидает именно такой объект.
@@ -61,11 +62,22 @@ class User(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(primary_key=True)
     username: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
     password_hash: Mapped[str] = mapped_column(String(512), nullable=False)
-    email: Mapped[str | None] = mapped_column(String(320), unique=True)
+    email_enc: Mapped[bytes | None] = mapped_column(nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true", nullable=False)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     roles: Mapped[list[Role]] = relationship(secondary=user_roles, back_populates="users")
     objects: Mapped[list[ProtectedObject]] = relationship(back_populates="owner")
+
+    @property
+    def email(self) -> str | None:
+        """Расшифровывает email только при явном обращении к свойству."""
+
+        return decrypt_field(self.email_enc) if self.email_enc is not None else None
+
+    def set_email(self, value: str | None) -> None:
+        """Шифрует email до помещения значения в ORM-модель."""
+
+        self.email_enc = encrypt_field(value) if value is not None else None
 
 
 class ProtectedObject(Base, TimestampMixin):
@@ -76,9 +88,20 @@ class ProtectedObject(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(primary_key=True)
     owner_id: Mapped[int] = mapped_column(ForeignKey("public.users.id", ondelete="RESTRICT"), nullable=False, index=True)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
-    content: Mapped[str] = mapped_column(Text, nullable=False)
+    content_enc: Mapped[bytes | None] = mapped_column(nullable=True)
     classification: Mapped[str] = mapped_column(String(32), default="internal", server_default="internal", nullable=False)
     owner: Mapped[User] = relationship(back_populates="objects")
+
+    @property
+    def content(self) -> str | None:
+        """Расшифровывает содержимое объекта по запросу приложения."""
+
+        return decrypt_field(self.content_enc) if self.content_enc is not None else None
+
+    def set_content(self, value: str) -> None:
+        """Шифрует содержимое перед сохранением объекта."""
+
+        self.content_enc = encrypt_field(value)
 
 
 class AuditLog(Base):
